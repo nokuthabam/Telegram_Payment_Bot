@@ -300,18 +300,28 @@ async def mark_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")]])
     )
 
+    telegram_username = update.effective_user.username
+    display_name = update.effective_user.full_name or update.effective_user.first_name or "Unknown"
+
+    username_line = (
+        f"Username: @{telegram_username}\n"
+        if telegram_username
+        else "Username: no @username set\n"
+    )
+
     if Config.ADMIN_TELEGRAM_ID:
         await context.bot.send_message(
             chat_id=Config.ADMIN_TELEGRAM_ID,
             text=(
-                "⚠️ *Manual Payment Marked as Paid*\n\n"
+                "⚠️ Manual Payment Marked as Paid\n\n"
                 f"Invoice: #{invoice_id}\n"
-                f"User ID: `{user_id}`\n"
-                f"Username: @{update.effective_user.username}\n"
+                f"User ID: {user_id}\n"
+                f"Name: {display_name}\n"
+                f"{username_line}"
                 f"Amount: ${invoice['amount_usd']:.2f}\n"
                 f"Coin: {invoice['coin']}\n\n"
                 "Please verify the payment manually and send the user the group link."
-            ),
+            )
         )
 
 

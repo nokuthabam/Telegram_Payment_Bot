@@ -312,7 +312,6 @@ async def mark_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Coin: {invoice['coin']}\n\n"
                 "Please verify the payment manually and send the user the group link."
             ),
-            parse_mode="Markdown"
         )
 
 

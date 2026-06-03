@@ -278,10 +278,10 @@ async def show_wallets(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text, parse_mode="Markdown")
 
 
-# ─── Mark as Paid ─────────────────────────────────────────────────────────────
 async def mark_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
     invoice_id = int(query.data.split("_")[1])
     user_id = update.effective_user.id
     invoice = db.get_invoice(invoice_id)
@@ -290,16 +290,15 @@ async def mark_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("❌ Invoice not found.")
         return
 
-    # db.update_invoice_status(invoice_id, "paid")
-    # await query.edit_message_text(
-    #     f"✅ *Invoice #{invoice_id} Marked as Paid!*\n\n"
-    #     f"Thank you! Please verify the transaction on the blockchain explorer.\n\n"
-    #     f"💵 Amount: ${invoice['amount_usd']:.2f}\n"
-    #     f"🪙 Coin: {invoice['coin']}",
-    #     parse_mode="Markdown",
-    #     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")]])
-    # )
     db.update_invoice_status(invoice_id, "paid", tx_hash=f"manual_test_{invoice_id}")
+
+    await query.edit_message_text(
+        f"✅ *Invoice #{invoice_id} Marked as Paid!*\n\n"
+        "Your payment has been flagged for manual review.\n"
+        "An admin has been notified.",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")]])
+    )
 
     if Config.ADMIN_TELEGRAM_ID:
         await context.bot.send_message(
@@ -315,13 +314,7 @@ async def mark_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ),
             parse_mode="Markdown"
         )
-    await query.edit_message_text(
-        f"✅ *Invoice #{invoice_id} Marked as Paid!*\n\n"
-        "Your payment has been flagged for manual review.\n"
-        "An admin has been notified.",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")]])
-    )
+
 
 # ─── Main Menu callback ────────────────────────────────────────────────────────
 async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):

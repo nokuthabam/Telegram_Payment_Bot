@@ -85,23 +85,36 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ─── Create Invoice Flow ───────────────────────────────────────────────────────
 async def create_invoice_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    if query:
-        await query.answer()
-        await query.edit_message_text(
-            "💳 *Create New Invoice*\n\n"
-            "Enter the *amount in USD* you want to receive:\n"
-            "_Example: 50 or 100.50_",
-            parse_mode="Markdown"
+    context.user_data["amount"] = 0.01
+    context.user_data["description"] = "Telegram group access"
+
+    keyboard = [
+        [InlineKeyboardButton("💵 USDT (TRC-20)", callback_data="coin_USDT_TRC20")],
+        [InlineKeyboardButton("◎ SOL", callback_data="coin_SOL")],
+        [InlineKeyboardButton("❌ Cancel", callback_data="main_menu")],
+    ]
+
+    text = (
+        "💳 *Group Access Payment*\n\n"
+        "Amount: *$0.01 USD*\n\n"
+        "Choose your payment method:"
+    )
+
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(
+            text,
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
         await update.message.reply_text(
-            "💳 *Create New Invoice*\n\n"
-            "Enter the *amount in USD* you want to receive:\n"
-            "_Example: 50 or 100.50_",
-            parse_mode="Markdown"
+            text,
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
-    return AWAITING_AMOUNT
+
+    return CONFIRMING
 
 
 async def receive_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -164,12 +177,15 @@ async def confirm_coin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     coin_key = query.data.replace("coin_", "")
+    # base_amount_usd = context.user_data["amount"]
+    # amount_usd, unique_adjustment = pm.generate_unique_usd_amount(
+    #     base_amount_usd,
+    #     coin_key,
+    #     db
+    #     )
     base_amount_usd = context.user_data["amount"]
-    amount_usd, unique_adjustment = pm.generate_unique_usd_amount(
-        base_amount_usd,
-        coin_key,
-        db
-        )
+    amount_usd = base_amount_usd
+    unique_adjustment = 0.00
     description = context.user_data["description"]
     user_id = update.effective_user.id
 
@@ -299,6 +315,13 @@ async def mark_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ),
             parse_mode="Markdown"
         )
+    await query.edit_message_text(
+        f"✅ *Invoice #{invoice_id} Marked as Paid!*\n\n"
+        "Your payment has been flagged for manual review.\n"
+        "An admin has been notified.",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")]])
+    )
 
 # ─── Main Menu callback ────────────────────────────────────────────────────────
 async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):

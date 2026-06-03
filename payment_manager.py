@@ -266,7 +266,7 @@ class PaymentManager:
             received = int(tx.get("value", "0")) / (10 ** decimals)
 
             # USDT can safely use 0.01 tolerance
-            if self._amount_matches(received, expected, tolerance=0.01):
+            if self._amount_matches(received, expected, tolerance=0.000001):
                 return True, tx_hash
 
         return False, None

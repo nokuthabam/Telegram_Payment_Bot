@@ -17,6 +17,7 @@ class Config:
     BLOCKCYPHER_API_KEY = os.getenv("BLOCKCYPHER_API_KEY", "")
     SOLANA_RPC_URL = os.getenv("SOLANA_RPC_URL", "")
     DATABASE_URL = os.getenv("DATABASE_URL", "")
+    ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID", "")
     # ── Wallet Addresses ──────────────────────────────────────────────────────
     # Replace these with YOUR real wallet addresses before deploying!
     BTC_WALLET:        str = os.getenv("BTC_WALLET",        "YOUR_BTC_ADDRESS_HERE")

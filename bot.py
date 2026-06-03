@@ -198,6 +198,7 @@ async def confirm_coin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }.get(coin_key, "")
 
     keyboard = [
+        [InlineKeyboardButton("✅ Mark as Paid", callback_data=f"markpaid_{invoice_id}")],
         [InlineKeyboardButton("📋 My Invoices", callback_data="my_invoices")],
         [InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")],
     ]
@@ -273,16 +274,31 @@ async def mark_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("❌ Invoice not found.")
         return
 
-    db.update_invoice_status(invoice_id, "paid")
-    await query.edit_message_text(
-        f"✅ *Invoice #{invoice_id} Marked as Paid!*\n\n"
-        f"Thank you! Please verify the transaction on the blockchain explorer.\n\n"
-        f"💵 Amount: ${invoice['amount_usd']:.2f}\n"
-        f"🪙 Coin: {invoice['coin']}",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")]])
-    )
+    # db.update_invoice_status(invoice_id, "paid")
+    # await query.edit_message_text(
+    #     f"✅ *Invoice #{invoice_id} Marked as Paid!*\n\n"
+    #     f"Thank you! Please verify the transaction on the blockchain explorer.\n\n"
+    #     f"💵 Amount: ${invoice['amount_usd']:.2f}\n"
+    #     f"🪙 Coin: {invoice['coin']}",
+    #     parse_mode="Markdown",
+    #     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Main Menu", callback_data="main_menu")]])
+    # )
+    db.update_invoice_status(invoice_id, "paid", tx_hash=f"manual_test_{invoice_id}")
 
+    if Config.ADMIN_TELEGRAM_ID:
+        await context.bot.send_message(
+            chat_id=Config.ADMIN_TELEGRAM_ID,
+            text=(
+                "⚠️ *Manual Payment Marked as Paid*\n\n"
+                f"Invoice: #{invoice_id}\n"
+                f"User ID: `{user_id}`\n"
+                f"Username: @{update.effective_user.username}\n"
+                f"Amount: ${invoice['amount_usd']:.2f}\n"
+                f"Coin: {invoice['coin']}\n\n"
+                "Please verify the payment manually and send the user the group link."
+            ),
+            parse_mode="Markdown"
+        )
 
 # ─── Main Menu callback ────────────────────────────────────────────────────────
 async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -402,7 +418,7 @@ def main():
     app.add_handler(CallbackQueryHandler(show_wallets, pattern="^show_wallets$"))
     app.add_handler(CallbackQueryHandler(help_command, pattern="^help$"))
     app.add_handler(CallbackQueryHandler(main_menu_callback, pattern="^main_menu$"))
-    # app.add_handler(CallbackQueryHandler(mark_paid, pattern="^markpaid_"))
+    app.add_handler(CallbackQueryHandler(mark_paid, pattern="^markpaid_"))
     app.add_handler(ChatJoinRequestHandler(handle_join_request))
 
     app.job_queue.run_repeating(

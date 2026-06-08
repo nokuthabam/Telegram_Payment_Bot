@@ -1,7 +1,7 @@
 """
 Telegram Crypto Payment Bot
 Currently exposed: USDT TRC-20 and SOL
-Stores subscription price in GBP, converts GBP → crypto, and notifies admins.
+Stores subscription price in GBP, converts GBP → crypto, and notifies admins. Manual Mark as Paid mode.
 """
 
 import logging
@@ -98,8 +98,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "2. Choose USDT TRC-20 or SOL\n"
         "3. The bot adds a small unique verification amount\n"
         "4. Send the exact crypto amount shown\n"
-        "5. The bot automatically checks the blockchain\n"
-        "6. After payment is confirmed, admins are notified to add you to the group\n\n"
+        "5. Tap Mark as Paid after sending payment\n"
+        "6. Admins are notified to manually verify and add you to the group\n\n"
         "🔐 Notes\n"
         "• Send only on the exact network shown\n"
         "• USDT TRC-20 is not the same as USDT ERC-20\n"
@@ -374,57 +374,15 @@ async def handle_join_request(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def check_pending_payments(context: ContextTypes.DEFAULT_TYPE):
-    pending = db.get_pending_invoices(limit=25)
+    """
+    Manual payment mode.
 
-    for invoice in pending:
-        try:
-            is_paid, tx_hash = await pm.verify_invoice(invoice, db)
-
-            if not is_paid:
-                continue
-
-            db.update_invoice_status(invoice["id"], "paid", tx_hash=tx_hash)
-
-            active_until = db.activate_subscription(
-                user_id=invoice["user_id"],
-                days=Config.SUBSCRIPTION_DAYS
-            )
-
-            amount_gbp = invoice.get("amount_gbp") or invoice.get("amount_usd") or 0
-            user = db.get_user(invoice["user_id"])
-            display_name = user["username"] if user and user.get("username") else "Unknown"
-
-            await notify_admins(
-                context,
-                (
-                    "✅ Blockchain Payment Verified\n\n"
-                    f"Invoice: #{invoice['id']}\n"
-                    f"User ID: {invoice['user_id']}\n"
-                    f"Stored name/username: {display_name}\n"
-                    f"Amount: £{float(amount_gbp):.2f} GBP\n"
-                    f"Coin: {invoice['coin']}\n"
-                    f"Transaction: {tx_hash}\n"
-                    f"Subscription active until: {_format_dt(active_until)}\n\n"
-                    "Action: Add the user to the Telegram group."
-                )
-            )
-
-            try:
-                await context.bot.send_message(
-                    chat_id=invoice["user_id"],
-                    text=(
-                        "✅ Payment verified!\n\n"
-                        f"Your subscription is active until {_format_dt(active_until)}. "
-                        "An admin has been notified to add you to the group."
-                    )
-                )
-            except Exception as e:
-                logger.exception(f"Could not notify user {invoice['user_id']}: {e}")
-
-            logger.info(f"Invoice {invoice['id']} paid via tx {tx_hash}")
-
-        except Exception as e:
-            logger.exception(f"Payment check failed for invoice {invoice['id']}: {e}")
+    Auto blockchain verification is intentionally disabled for now.
+    Invoices are only marked paid when the user taps "Mark as Paid",
+    after which admins are notified to verify and add the user manually.
+    """
+    logger.info("Auto payment verification is disabled; using manual Mark as Paid flow only.")
+    return
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -460,16 +418,21 @@ def main():
     app.add_handler(CallbackQueryHandler(help_command, pattern="^help$"))
     app.add_handler(CallbackQueryHandler(main_menu_callback, pattern="^main_menu$"))
     app.add_handler(CallbackQueryHandler(mark_paid, pattern="^markpaid_"))
-    app.add_handler(ChatJoinRequestHandler(handle_join_request))
+    # Manual-admin mode: bot does not approve group join requests.
+    # app.add_handler(ChatJoinRequestHandler(handle_join_request))
 
-    if app.job_queue:
-        app.job_queue.run_repeating(
-            check_pending_payments,
-            interval=60,
-            first=15
-        )
-    else:
-        logger.warning("No JobQueue available. Install python-telegram-bot[job-queue].")
+    # Manual-payment mode:
+    # Auto blockchain verification is disabled, so the background payment checker
+    # is intentionally not scheduled. Payments are handled through Mark as Paid.
+    #
+    # if app.job_queue:
+    #     app.job_queue.run_repeating(
+    #         check_pending_payments,
+    #         interval=60,
+    #         first=15
+    #     )
+    # else:
+    #     logger.warning("No JobQueue available. Install python-telegram-bot[job-queue].")
 
     print("🤖 Bot is running...")
     app.run_polling(drop_pending_updates=True)

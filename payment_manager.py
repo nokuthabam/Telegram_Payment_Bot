@@ -2,7 +2,7 @@
 Payment Manager
 - Holds wallet address mapping
 - Converts GBP → crypto via CoinGecko free API
-- Verifies blockchain payments
+- Contains blockchain verification helpers (currently unused while manual mode is enabled)
 """
 
 import aiohttp

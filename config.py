@@ -21,7 +21,7 @@ class Config:
     ]
 
     # ── Subscription Info ─────────────────────────────────────────────────────
-    MEMBERSHIP_PRICE_GBP: float = float(os.getenv("MEMBERSHIP_PRICE_GBP", "100"))
+    MEMBERSHIP_PRICE_GBP: float = float(os.getenv("MEMBERSHIP_PRICE_GBP", "75"))
     SUBSCRIPTION_DAYS: int = int(os.getenv("SUBSCRIPTION_DAYS", "30"))
 
     # ── API Keys ──────────────────────────────────────────────────────────────

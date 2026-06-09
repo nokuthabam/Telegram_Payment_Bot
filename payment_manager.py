@@ -107,7 +107,12 @@ class PaymentManager:
         return float(value)
 
     def _amount_matches(self, received: float, expected: float, tolerance: float = 0.000001) -> bool:
-        return received + tolerance >= expected
+        """
+        Checks that received is within tolerance of expected — both above AND below.
+        This enforces the unique penny amount: a payment of 75.37 USDT will NOT
+        match an invoice for 75.23 USDT, preventing cross-invoice false positives.
+        """
+        return abs(received - expected) <= tolerance
 
     async def _get_json(self, url: str, params: dict | None = None, headers: dict | None = None):
         timeout = aiohttp.ClientTimeout(total=20)
@@ -164,7 +169,7 @@ class PaymentManager:
                     continue
 
                 received = output.get("value", 0) / 100_000_000
-                if self._amount_matches(received, expected):
+                if self._amount_matches(received, expected, tolerance=0.000_000_01):
                     return True, tx_hash
 
         return False, None
@@ -199,7 +204,7 @@ class PaymentManager:
                 continue
 
             received = int(tx.get("value", "0")) / 10**18
-            if self._amount_matches(received, expected):
+            if self._amount_matches(received, expected, tolerance=0.000_001):
                 return True, tx_hash
 
         return False, None
@@ -298,7 +303,7 @@ class PaymentManager:
                     continue
 
                 received = int(amount_sun) / 1_000_000
-                if self._amount_matches(received, expected):
+                if self._amount_matches(received, expected, tolerance=0.01):
                     return True, tx_hash
 
         return False, None
@@ -332,7 +337,7 @@ class PaymentManager:
             decimals = int(tx.get("token_info", {}).get("decimals", 6))
             received = int(tx.get("value", "0")) / (10 ** decimals)
 
-            if self._amount_matches(received, expected, tolerance=0.000001):
+            if self._amount_matches(received, expected, tolerance=0.01):
                 return True, tx_hash
 
         return False, None
@@ -389,7 +394,7 @@ class PaymentManager:
                     continue
 
                 received = (post_balances[index] - pre_balances[index]) / 1_000_000_000
-                if self._amount_matches(received, expected):
+                if self._amount_matches(received, expected, tolerance=0.000_001):
                     return True, signature
 
         return False, None

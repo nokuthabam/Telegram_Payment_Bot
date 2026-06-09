@@ -107,24 +107,35 @@ class PaymentManager:
         return float(value)
 
     def _amount_matches(self, received: float, expected: float, tolerance: float = 0.000001) -> bool:
-        """
-        Checks that received is within tolerance of expected — both above AND below.
-        This enforces the unique penny amount: a payment of 75.37 USDT will NOT
-        match an invoice for 75.23 USDT, preventing cross-invoice false positives.
-        """
-        return abs(received - expected) <= tolerance
+        return received + tolerance >= expected
 
-    async def _get_json(self, url: str, params: dict | None = None, headers: dict | None = None):
+    async def _get_json(self, url: str, params: dict | None = None, headers: dict | None = None) -> dict:
         timeout = aiohttp.ClientTimeout(total=20)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url, params=params, headers=headers) as resp:
+                if resp.status != 200:
+                    text = await resp.text()
+                    raise ValueError(f"HTTP {resp.status} from {url}: {text[:200]}")
                 return await resp.json()
 
-    async def _post_json(self, url: str, payload: dict):
+    async def _post_json(self, url: str, payload: dict) -> dict:
         timeout = aiohttp.ClientTimeout(total=20)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(url, json=payload) as resp:
+                if resp.status != 200:
+                    text = await resp.text()
+                    raise ValueError(f"HTTP {resp.status} from {url}: {text[:200]}")
                 return await resp.json()
+
+    def _is_valid_hash(self, tx_hash: str, length: int = 64) -> bool:
+        """Reject anything that isn't exactly `length` lowercase hex characters."""
+        if not tx_hash or len(tx_hash) != length:
+            return False
+        try:
+            int(tx_hash, 16)
+            return True
+        except ValueError:
+            return False
 
     # ─── Dispatcher ───────────────────────────────────────────────────────────
     async def verify_invoice(self, invoice: dict, db) -> tuple[bool, str | None]:
@@ -158,7 +169,7 @@ class PaymentManager:
 
         for tx in data.get("txs", []):
             tx_hash = tx.get("hash")
-            if not tx_hash or db.tx_hash_exists(tx_hash):
+            if not self._is_valid_hash(tx_hash) or db.tx_hash_exists(tx_hash):
                 continue
             if tx.get("confirmations", 0) < 1:
                 continue
@@ -169,7 +180,7 @@ class PaymentManager:
                     continue
 
                 received = output.get("value", 0) / 100_000_000
-                if self._amount_matches(received, expected, tolerance=0.000_000_01):
+                if self._amount_matches(received, expected):
                     return True, tx_hash
 
         return False, None
@@ -194,7 +205,7 @@ class PaymentManager:
 
         for tx in data.get("result", []):
             tx_hash = tx.get("hash")
-            if not tx_hash or db.tx_hash_exists(tx_hash):
+            if not self._is_valid_hash(tx_hash) or db.tx_hash_exists(tx_hash):
                 continue
             if tx.get("isError") == "1":
                 continue
@@ -204,7 +215,7 @@ class PaymentManager:
                 continue
 
             received = int(tx.get("value", "0")) / 10**18
-            if self._amount_matches(received, expected, tolerance=0.000_001):
+            if self._amount_matches(received, expected):
                 return True, tx_hash
 
         return False, None
@@ -231,7 +242,7 @@ class PaymentManager:
 
         for tx in data.get("result", []):
             tx_hash = tx.get("hash")
-            if not tx_hash or db.tx_hash_exists(tx_hash):
+            if not self._is_valid_hash(tx_hash) or db.tx_hash_exists(tx_hash):
                 continue
             if tx.get("to", "").lower() != wallet:
                 continue
@@ -291,7 +302,7 @@ class PaymentManager:
 
         for tx in data.get("data", []):
             tx_hash = tx.get("txID")
-            if not tx_hash or db.tx_hash_exists(tx_hash):
+            if not self._is_valid_hash(tx_hash) or db.tx_hash_exists(tx_hash):
                 continue
 
             for contract in tx.get("raw_data", {}).get("contract", []):
@@ -303,7 +314,7 @@ class PaymentManager:
                     continue
 
                 received = int(amount_sun) / 1_000_000
-                if self._amount_matches(received, expected, tolerance=0.01):
+                if self._amount_matches(received, expected):
                     return True, tx_hash
 
         return False, None
@@ -329,7 +340,7 @@ class PaymentManager:
 
         for tx in data.get("data", []):
             tx_hash = tx.get("transaction_id")
-            if not tx_hash or db.tx_hash_exists(tx_hash):
+            if not self._is_valid_hash(tx_hash) or db.tx_hash_exists(tx_hash):
                 continue
             if tx.get("to", "") != wallet:
                 continue
@@ -337,7 +348,7 @@ class PaymentManager:
             decimals = int(tx.get("token_info", {}).get("decimals", 6))
             received = int(tx.get("value", "0")) / (10 ** decimals)
 
-            if self._amount_matches(received, expected, tolerance=0.01):
+            if self._amount_matches(received, expected, tolerance=0.000001):
                 return True, tx_hash
 
         return False, None
@@ -357,7 +368,7 @@ class PaymentManager:
 
         for item in signatures_data.get("result", []):
             signature = item.get("signature")
-            if not signature or db.tx_hash_exists(signature):
+            if not signature or len(signature) < 80 or db.tx_hash_exists(signature):
                 continue
             if item.get("err") is not None:
                 continue
@@ -394,7 +405,7 @@ class PaymentManager:
                     continue
 
                 received = (post_balances[index] - pre_balances[index]) / 1_000_000_000
-                if self._amount_matches(received, expected, tolerance=0.000_001):
+                if self._amount_matches(received, expected):
                     return True, signature
 
         return False, None
